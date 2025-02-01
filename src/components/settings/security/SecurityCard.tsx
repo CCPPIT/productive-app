@@ -1,0 +1,32 @@
+"use client"
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
+import Warnning from '@/components/ui/warning';
+import { useTranslations } from 'next-intl'
+import React from 'react'
+import { ChangePassword } from './ChangePassword';
+
+
+
+export const SecurityCard = () => {
+    const t=useTranslations("SETTINGS.SECURITY");
+
+  return (
+   <Card className='bg-background border-none shadow-none'>
+    <CardHeader>
+        <h1 className='text-2xl font-semibold leading-none tracking-tight'>{t("TITLE")}</h1>
+        <CardDescription className='text-base max-w-3xl break-words'>{t("DESC")}</CardDescription>
+    </CardHeader>
+    <CardContent>
+        <Warnning className='my-0 mb-0 sm:mb-10'>
+            <p>{t("WARNING.FIRST")}</p>
+            <span className='font-bold'>{t("WARNING.SECOND")}</span>
+            {t("WARNING.THIRD")}
+            <span className='font-bold'>{t("WARNING.FOURTH")}</span>
+            {t("WARNING.FIFTH")}
+        </Warnning>
+        <ChangePassword/>
+    </CardContent>
+
+   </Card>
+  )
+}

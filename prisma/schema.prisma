@@ -1,0 +1,288 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // directUrl = env("DIRECT_URL")
+}
+model User {
+  id                    String            @id @default(cuid()) // معرف فريد للمستخدم
+  name                  String?           // اسم المستخدم (اختياري)
+  username              String            @unique // اسم المستخدم الفريد
+  surname               String?           // لقب المستخدم (اختياري)
+  email                 String?           @unique // البريد الإلكتروني (اختياري وفريد)
+  emailVerified         DateTime?         // تاريخ تحقق البريد الإلكتروني (اختياري)
+  hashedPassword        String?           // كلمة المرور المشفرة (اختياري)
+  image                 String?           // رابط صورة الملف الشخصي (اختياري)
+  completedOnboarding   Boolean           @default(false) // حالة إكمال عملية التسجيل
+  accounts              Account[]         // قائمة حسابات المستخدم
+  sessions              Session[]         // قائمة جلسات المستخدم
+  createdWorkspaces     Workspace[]       @relation("CreatedBy") // مساحات العمل التي أنشأها المستخدم
+  subscriptions         Subscription[]    // الاشتراكات المرتبطة بالمستخدم
+  useCase               UseCase?          // حالة الاستخدام المرتبطة بالمستخدم (اختياري)
+  createdTasks          Task[]            @relation("TaskCreatedByUser") // المهام التي أنشأها المستخدم
+  updatedTasks          Task[]            @relation("TaskUpdatedByUser") // المهام التي تم تحديثها بواسطة المستخدم
+  savedTask             savedTask[]       // المهام المحفوظة بواسطة المستخدم
+  createdMindMaps       MindMap[]         @relation("MindMapCreatedByUser") // الخرائط الذهنية التي أنشأها المستخدم
+  updatedMindMaps       MindMap[]         @relation("MindMapUpdatedByUser") // الخرائط الذهنية التي تم تحديثها بواسطة المستخدم
+  savedMindMaps         savedMindMaps[]   // الخرائط الذهنية المحفوظة بواسطة المستخدم
+  pomodoroSettings       PomodoroSettings[] // إعدادات مؤقت بومودورو للمستخدم
+  assignedToTask        assignedToTask[]  // المهام المعينة للمستخدم
+  assignedToMindMap     assignedToMindMap[] // الخرائط الذهنية المعينة للمستخدم
+  userNotifications      Notification[]    @relation("NotifyUser") // إشعارات المستخدم
+  userCreatedNotifications Notification[] @relation("NotifyCreator") // الإشعارات التي أنشأها المستخدم
+  messages              Message[]         // الرسائل المرتبطة بالمستخدم
+}
+model savedMindMaps {
+  id        String   @id @default(cuid()) // معرف فريد للخريطة الذهنية المحفوظة
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade) // العلاقة مع المستخدم
+  userId    String   // معرف المستخدم الذي قام بحفظ الخريطة
+  mindMap   MindMap  @relation(fields: [mindMapId], references: [id], onDelete: Cascade) // العلاقة مع الخريطة الذهنية
+  mindMapId String   // معرف الخريطة الذهنية المرتبطة
+}
+model Account {
+  id                String @id @default(cuid()) // معرف فريد للحساب
+  userId            String @unique // معرف المستخدم المرتبط (يجب أن يكون فريدًا)
+  type              String // نوع الحساب (مثل "oauth" أو "local")
+  provider          String // موفر الخدمة (مثل "google" أو "facebook")
+  providerAccountId String @map("provider_account_id") // معرف الحساب من موفر الخدمة
+  refresh_token     String? @db.Text // رمز التحديث (اختياري)
+  access_token      String? @db.Text // رمز الوصول (اختياري)
+  expires_at        Int? // وقت انتهاء صلاحية الرمز (اختياري)
+  token_type        String? // نوع الرمز (اختياري)
+  scope             String? // النطاقات المسموح بها (اختياري)
+  id_token          String? @db.Text // رمز التعريف (اختياري)
+  session_state     String? // حالة الجلسة (اختياري)
+ 
+  createdAt         DateTime @default(now()) // تاريخ إنشاء الحساب
+  updatedAt         DateTime @updatedAt // تاريخ آخر تحديث للحساب
+ 
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade) // علاقة مع نموذج User
+
+  @@unique([provider, providerAccountId]) // قيود فريدة على مجموعة provider و providerAccountId
+}
+model Session{
+  id  String @id @default(cuid())
+  sessionToken String @unique
+  userId String @unique
+  expires DateTime
+  user User @relation(fields: [userId],references: [id],onDelete: Cascade)
+}
+model VerificationToken {
+  identifier String   // معرف المستخدم أو البريد الإلكتروني المرتبط بالتحقق
+  token      String   @unique // رمز التحقق الفريد
+  expires    DateTime // تاريخ انتهاء صلاحية رمز التحقق
+}
+enum UserPermission {
+  ADMIN      // صلاحية المسؤول، تتيح الوصول الكامل
+  CAN_EDIT   // صلاحية التحرير، تتيح للمستخدم تعديل المحتوى
+  READ_ONLY  // صلاحية القراءة فقط، تتيح للمستخدم الاطلاع دون تعديل
+  OWNER      // صلاحية المالك، تتيح التحكم الكامل بالمحتوى المملوك
+}
+enum UseCase {
+  WORK          // حالة الاستخدام المتعلقة بالعمل
+  STUDY         // حالة الاستخدام المتعلقة بالدراسة
+  PERSONAL_USE   // حالة الاستخدام للاستخدام الشخصي
+}
+enum NotifyType {
+  NEW_USER_IN_WORKSPACE          // إشعار عند إضافة مستخدم جديد إلى مساحة العمل
+  USER_LEFT_WORKSPACE            // إشعار عند مغادرة مستخدم لمساحة العمل
+  NEW_TASK                       // إشعار عند إنشاء مهمة جديدة
+  NEW_MIND_MAP                   // إشعار عند إنشاء خريطة ذهنية جديدة
+  NEW_ROLE                       // إشعار عند تعيين دور جديد لمستخدم
+  NEW_ASSIGNMENT_TASK            // إشعار عند تعيين مهمة جديدة لمستخدم
+  NEW_ASSIGNMENT_MIND_MAP        // إشعار عند تعيين خريطة ذهنية جديدة لمستخدم
+}
+model Notification {
+  id                String       @id @default(cuid()) // معرف فريد للإشعار
+  user              User         @relation(name: "NotifyUser", fields: [userId], references: [id], onDelete: Cascade) // المستخدم الذي يتلقى الإشعار
+  userId            String       // معرف المستخدم المتلقي
+  notifyCreator     User         @relation(name: "NotifyCreator", fields: [notifyCreatorId], references: [id], onDelete: Cascade) // المستخدم الذي أنشأ الإشعار
+  notifyCreatorId   String       // معرف المستخدم الذي أنشأ الإشعار
+  workspace         Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: Cascade) // مساحة العمل المرتبطة بالإشعار
+  workspaceId       String       // معرف مساحة العمل
+  seen              Boolean      @default(false) // حالة الإشعار (مرئي/غير مرئي)
+  clicked           Boolean      @default(false) // حالة الإشعار (تم النقر عليه/لم يتم النقر عليه)
+  createdDate       DateTime     @default(now()) // تاريخ إنشاء الإشعار
+  notifyType        NotifyType   // نوع الإشعار
+  newUserRole      UserPermission? // الدور الجديد للمستخدم (اختياري)
+  taskId            String?      // معرف المهمة المرتبطة بالإشعار (اختياري)
+  mindMapId         String?      // معرف الخريطة الذهنية المرتبطة بالإشعار (اختياري)
+}
+model Conversation {
+  id          String     @id @default(cuid()) // معرف فريد للمحادثة
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade) // العلاقة مع نموذج مساحة العمل
+  workspaceId String     @unique // معرف مساحة العمل (يجب أن يكون فريدًا)
+  messages    Message[]  // قائمة الرسائل المرتبطة بالمحادثة
+}
+model Message {
+  id                  String                @id @default(cuid()) // معرف فريد للرسالة
+  conversation        Conversation           @relation(fields: [conversationId], references: [id], onDelete: Cascade) // العلاقة مع نموذج المحادثة
+  conversationId      String                // معرف المحادثة المرتبطة
+  sender              User                  @relation(fields: [senderId], references: [id], onDelete: Cascade) // المستخدم الذي أرسل الرسالة
+  senderId            String                // معرف المستخدم المرسل
+  content             String                // محتوى الرسالة
+  createdAt           DateTime              @default(now()) // تاريخ ووقت إنشاء الرسالة
+  additionalResources  additionalResource[]  // الموارد الإضافية المرتبطة بالرسالة
+  edited              Boolean               @default(false) // حالة التعديل (تم تعديلها/لم يتم تعديلها)
+  updatedAt           DateTime?             @updatedAt // تاريخ ووقت آخر تحديث للرسالة
+}
+model additionalResource {
+  id          String                     @id @default(cuid()) // معرف فريد للموارد الإضافية
+  message     Message?                  @relation(fields: [messageId], references: [id], onDelete: Cascade) // العلاقة مع نموذج الرسالة
+  messageId   String?                   // معرف الرسالة المرتبطة
+  type        AdditionalResourceTypes    // نوع المورد الإضافي
+  name        String                    // اسم المورد
+  url         String                    // رابط المورد
+}
+enum AdditionalResourceTypes {
+  PDF    // نوع المورد: ملف PDF
+  IMAGE  // نوع المورد: صورة
+}
+model Workspace {
+  id                String        @id @default(cuid()) // معرف فريد لمساحة العمل
+  name              String        // اسم مساحة العمل
+  createdAt         DateTime      @default(now()) // تاريخ ووقت إنشاء مساحة العمل
+  updatedAt         DateTime      @updatedAt // تاريخ ووقت آخر تحديث لمساحة العمل
+  creatorId         String?       // معرف المستخدم الذي أنشأ مساحة العمل (اختياري)
+  Creator           User?         @relation("CreatedBy", fields: [creatorId], references: [id], onDelete: Cascade) // العلاقة مع المستخدم الذي أنشأ مساحة العمل
+  subscribers       Subscription[] // قائمة المشتركين في مساحة العمل
+  image             String?       // رابط لصورة مساحة العمل (اختياري)
+  color             CustomColors   @default(BLUE) // اللون المخصص لمساحة العمل
+  inviteCode        String         @unique // رمز الدعوة لدعوة مستخدمين جدد
+  adminCode         String         @unique // رمز الإدارة (لإدارة الصلاحيات)
+  canEditCode       String         @unique // رمز التعديل (للسماح بالتعديل)
+  readOnlyCode      String         @unique // رمز القراءة فقط (للسماح بعرض المحتوى فقط)
+  tasks             Task[]        // قائمة المهام المرتبطة بمساحة العمل
+  tags              Tag[]         // قائمة العلامات المرتبطة بمساحة العمل
+  mindMaps          MindMap[]     // قائمة الخرائط الذهنية المرتبطة بمساحة العمل
+  notification      Notification[] // قائمة الإشعارات المرتبطة بمساحة العمل
+  conversation      Conversation?  // المحادثة المرتبطة بمساحة العمل (اختياري)
+}
+model Task {
+  id                String         @id @default(cuid()) // معرف فريد للمهمة
+  createdAt         DateTime       @default(now()) // تاريخ ووقت إنشاء المهمة
+  updatedAt         DateTime       @updatedAt // تاريخ ووقت آخر تحديث للمهمة
+  updatedBy         User?          @relation(name: "TaskUpdatedByUser", fields: [updatedUserId], references: [id], onDelete: Cascade) // المستخدم الذي قام بتحديث المهمة
+  updatedUserId     String?        // معرف المستخدم الذي قام بالتحديث (اختياري)
+  creator           User           @relation(name: "TaskCreatedByUser", fields: [creatorId], references: [id], onDelete: Cascade) // المستخدم الذي أنشأ المهمة
+  creatorId         String         // معرف المستخدم الذي أنشأ المهمة
+  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade) // مساحة العمل المرتبطة بالمهمة
+  workspaceId       String         // معرف مساحة العمل
+  title             String         // عنوان المهمة
+  emoji             String         @default("1f9e0") // رمز تعبيري مرتبط بالمهمة (افتراضي: "1f9e0")
+  content           Json?          // محتوى المهمة (يمكن أن يكون بتنسيق JSON)
+  tags              Tag[]          // قائمة العلامات المرتبطة بالمهمة
+  taskDate          TaskDate?      @relation(fields: [dateId], references: [id], onDelete: Cascade) // التاريخ المرتبط بالمهمة
+  dateId            String?        // معرف التاريخ المرتبط بالمهمة (اختياري)
+  savedTask         savedTask[]    // قائمة المهام المحفوظة
+  assignedToTask    assignedToTask[] // قائمة المستخدمين المعينين للمهمة
+}
+model savedTask {
+  id      String  @id @default(cuid()) // معرف فريد للمهمة المحفوظة
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade) // العلاقة مع المستخدم الذي حفظ المهمة
+  userId  String  // معرف المستخدم
+  task    Task    @relation(fields: [taskId], references: [id], onDelete: Cascade) // العلاقة مع المهمة المحفوظة
+  taskId  String  // معرف المهمة
+}
+model PomodoroSettings {
+  id                     String                     @id @default(cuid()) // معرف فريد لإعدادات بومودورو
+  user                   User                       @relation(fields: [userId], references: [id], onDelete: Cascade) // العلاقة مع المستخدم
+  userId                 String                     // معرف المستخدم
+  workDuration           Int                        @default(25) // مدة العمل (بالدقائق) (افتراضي: 25 دقيقة)
+  shortBreakDuration     Int                        @default(5)  // مدة الاستراحة القصيرة (بالدقائق) (افتراضي: 5 دقائق)
+  longBreakDuration      Int                        @default(15) // مدة الاستراحة الطويلة (بالدقائق) (افتراضي: 15 دقيقة)
+  longBreakInterval      Int                        @default(2)  // عدد الجولات قبل أخذ استراحة طويلة (افتراضي: 2)
+  rounds                 Int                        @default(3)  // عدد الجولات في كل جلسة (افتراضي: 3)
+  soundEffect            PomodoroSoundEffect        @default(BELL) // تأثير الصوت المستخدم (افتراضي: جرس)
+  soundEffectVolume      Float                      @default(0.5) // مستوى صوت تأثير الصوت (افتراضي: 0.5)
+}
+model assignedToTask {
+  id      String  @id @default(cuid()) // معرف فريد لتعيين المهمة
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade) // العلاقة مع المستخدم المعين
+  userId  String  // معرف المستخدم
+  task    Task    @relation(fields: [taskId], references: [id], onDelete: Cascade) // العلاقة مع المهمة المعينة
+  taskId  String  // معرف المهمة
+}
+model assignedToMindMap {
+  id        String   @id @default(cuid()) // معرف فريد لتعيين الخريطة الذهنية
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade) // العلاقة مع المستخدم المعين
+  userId    String   // معرف المستخدم
+  mindMap   MindMap  @relation(fields: [mindMapId], references: [id], onDelete: Cascade) // العلاقة مع الخريطة الذهنية المعينة
+  mindMapId String   // معرف الخريطة الذهنية
+}
+enum PomodoroSoundEffect {
+  ANALOG         // تأثير صوتي على نمط الصوت التناظري
+  BIRD           // تأثير صوتي يشبه تغريد الطيور
+  CHURCH_BELL    // تأثير صوتي يشبه جرس الكنيسة
+  DIGITAL        // تأثير صوتي على نمط الصوت الرقمي
+  FANCY          // تأثير صوتي مميز أو فاخر
+  BELL           // تأثير صوتي يشبه الجرس
+}
+model Tag {
+  id          String     @id @default(cuid()) // معرف فريد للعلامة
+  name        String     // اسم العلامة
+  tasks       Task[]     // قائمة المهام المرتبطة بالعلامة
+  color       CustomColors // لون العلامة
+  workspace   Workspace?  @relation(fields: [workspaceId], references: [id], onDelete: Cascade) // العلاقة مع مساحة العمل
+  workspaceId String      // معرف مساحة العمل
+  mindMaps    MindMap[]   // قائمة الخرائط الذهنية المرتبطة بالعلامة
+}
+model TaskDate {
+  id    String   @id @default(cuid()) // معرف فريد لتاريخ المهمة
+  from  String?  // تاريخ البدء (اختياري)
+  to    String?  // تاريخ الانتهاء (اختياري)
+  Task  Task[]   // قائمة المهام المرتبطة بهذا التاريخ
+}
+enum CustomColors {
+  PURPLE    // اللون الأرجواني
+  RED       // اللون الأحمر
+  GREEN     // اللون الأخضر
+  BLUE      // اللون الأزرق
+  PINK      // اللون الوردي
+  YELLOW    // اللون الأصفر
+  ORANGE    // اللون البرتقالي
+  CYAN      // اللون السماوي
+  LIME      // اللون الليموني
+  EMERALD   // اللون الزمردي
+  INDIGO    // اللون النيلي
+  FUCHSIA   // اللون الفوشيا
+}
+model Subscription {
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade) // العلاقة مع المستخدم
+  userId      String          // معرف المستخدم
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade) // العلاقة مع مساحة العمل
+  workspaceId String          // معرف مساحة العمل
+  userRole    UserPermission   @default(READ_ONLY) // دور المستخدم في الاشتراك
+
+  @@id([userId, workspaceId]) // تعيين المفتاح الأساسي المركب
+}
+model MindMap {
+  id                String              @id @default(cuid()) // معرف فريد للخريطة الذهنية
+  createdAt         DateTime           @default(now()) // تاريخ ووقت إنشاء الخريطة الذهنية
+  updatedAt         DateTime           @updatedAt // تاريخ ووقت آخر تحديث للخريطة الذهنية
+  updatedBy         User?              @relation(name: "MindMapUpdatedByUser", fields: [updatedUserId], references: [id], onDelete: Cascade) // العلاقة مع المستخدم الذي قام بالتحديث
+  creator           User                @relation(name: "MindMapCreatedByUser", fields: [creatorId], references: [id], onDelete: Cascade) // العلاقة مع المستخدم الذي أنشأ الخريطة
+  creatorId        String              // معرف المستخدم الذي أنشأ الخريطة
+  updatedUserId    String?             // معرف المستخدم الذي قام بآخر تحديث (اختياري)
+  workspace        Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade) // العلاقة مع مساحة العمل
+  workspaceId      String              // معرف مساحة العمل المرتبطة بالخريطة
+  content          Json?               // محتوى الخريطة الذهنية (يمكن أن يكون نصًا أو هيكل بيانات)
+  title            String              // عنوان الخريطة الذهنية
+  emoji            String              @default("1f9e0") // رمز تعبيري افتراضي للخريطة
+  tags             Tag[]               // قائمة العلامات المرتبطة بالخريطة
+  savedMindMaps    savedMindMaps[]     // قائمة الخرائط الذهنية المحفوظة
+  assignedToMindMap assignedToMindMap[] // قائمة التعيينات المرتبطة بالخريطة الذهنية
+
+  @@index([workspaceId]) // فهرس على حقل workspaceId
+  @@index([updatedUserId]) // فهرس على حقل updatedUserId
+  @@index([creatorId]) // فهرس على حقل creatorId
+}
